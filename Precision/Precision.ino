@@ -230,8 +230,6 @@ void expectSecond1(char in) {
   state=expectDollar;
 }
 
-#define SWITCH
-
 void lights() {
   update_clock();
   ls[4]=digitalRead(2)?0:60;
