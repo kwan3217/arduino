@@ -1,10 +1,25 @@
 #include <PCharlie.h>
 
+volatile unsigned long h=0,m=0,s=0,t=0,u=0;
+unsigned long gh=0,gm=0,gs=0;
+volatile int ls[5];         //0 1 2 3 4 5 6 7 8 9 A B C D E F
+static const int multiplex[]={2,3,1,3,3,2,3,3,0,3,1,3,4,3,2,3};
+volatile unsigned long last_micro=0;
+volatile unsigned long lightRate=0;
+
+#define MILLION 1000000
+
+
 void setup() {
-  Serial.begin(9600);  
+  Serial.begin(9600);
+  Serial.print("$PMTK314,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0*28\r\n");  
   allDark();
-//  pinMode(12,OUTPUT);
-//  digitalWrite(12,HIGH);
+  ls[4]=0;
+  //Set the ATmega to listen to the GPS, not the USB port
+  //Pin 12 - low is GPS, high is USB. There is an external 
+  //pullup, so input is USB also
+  pinMode(12,OUTPUT);
+  digitalWrite(12,LOW);
 //Activate the 20k pullup on the PPS line. With no GPS,
 //this means that the pin will not respond to things like
 //touching the PPS pins. With a GPS, the line will follow
@@ -14,15 +29,15 @@ void setup() {
   attachInterrupt(0,pps,RISING);
 }
 
-volatile unsigned long h=0,m=0,s=0,t=0,u=0;
-unsigned long gh=0,gm=0,gs=0;
-volatile unsigned long last_micro=0,this_micro;
-
-#define MILLION 1000000
-
 void incClock() {
   while(u>=MILLION) {
     s++;
+    if(s==60) {
+      Serial.print("lightRate: ");
+      Serial.println(lightRate,DEC);
+    }
+    lightRate=0;
+    
     u-=MILLION;
   }
   t=u*60/MILLION;
@@ -37,11 +52,17 @@ void incClock() {
   while(h>=24) {
     h-=24;
   }
+  ls[0]=(h*5+m/12)%60;
+  ls[1]=m;
+  ls[2]=s;
+  ls[3]=t;
 }
 
 void pps() {
   //Otherwise the next update_clock will credit time before the tick to the next update.
   //micros() doesn't update during an interrupt but we don't need it to.
+//  ls[4]++;
+//  if(ls[4]>60) ls[4]=0;
   last_micro=micros();
 //If the PPS comes in in the first half of the second 0<=u<500000, presume that the local clock
 //has passed the top of the second on its own and incremented itself. Otherwise, presume that
@@ -54,7 +75,7 @@ void pps() {
 }
 
 void update_clock() {
-  this_micro=micros();
+  unsigned long this_micro=micros();
   if (this_micro<last_micro) {
     //Easier done than said.
     //Pretend that we are using an unsigned int that has a maximum value of 9 and min of 0.
@@ -140,7 +161,7 @@ void expectComma0(char in) {
 }
 
 void expectHour0(char in) {
-  if(in>='0' & in<='9') {
+  if(in>='0' && in<='9') {
     gh=(in-'0')*10;
     state=expectHour1;
     return;
@@ -149,7 +170,7 @@ void expectHour0(char in) {
 }
 
 void expectHour1(char in) {
-  if(in>='0' & in<='9') {
+  if(in>='0' && in<='9') {
     gh+=(in-'0');
     state=expectMinute0;
     return;
@@ -158,7 +179,7 @@ void expectHour1(char in) {
 }
 
 void expectMinute0(char in) {
-  if(in>='0' & in<='9') {
+  if(in>='0' && in<='9') {
     gm=(in-'0')*10;
     state=expectMinute1;
     return;
@@ -167,7 +188,7 @@ void expectMinute0(char in) {
 }
 
 void expectMinute1(char in) {
-  if(in>='0' & in<='9') {
+  if(in>='0' && in<='9') {
     gm+=(in-'0');
     state=expectSecond0;
     return;
@@ -176,7 +197,7 @@ void expectMinute1(char in) {
 }
 
 void expectSecond0(char in) {
-  if(in>='0' & in<='9') {
+  if(in>='0' && in<='9') {
     gs=(in-'0')*10;
     state=expectSecond1;
     return;
@@ -184,54 +205,39 @@ void expectSecond0(char in) {
   state=expectDollar;
 }
 
+//Hours the local time zone is behind UTC - positive for all US time zones
 const int tz=6;
 
 void expectSecond1(char in) {
   if(in>='0' & in<='9') {
     gs+=(in-'0');
-    h=(gh+24-tz)%12;m=gm;s=gs;
+    //Validate GPS time
+    if(gh>=0 && gh<24 && gm>=0 && gm<60 && gs>=0 && gs<60) {
+      //Time is valid
+      h=(gh+24-tz)%12;m=gm;s=gs;
+    } else {
+      Serial.print("Problem with GPS time: ");
+      if(gh<10) Serial.print("0");
+      Serial.print(gh,DEC);
+      Serial.print(":");
+      if(gm<10) Serial.print("0");
+      Serial.print(gm,DEC);
+      Serial.print(":");
+      if(gs<10) Serial.print("0");
+      Serial.println(gs,DEC);
+    }
   }
   state=expectDollar;
 }
-
-volatile unsigned long lightRate=0;
 
 #define SWITCH
 
 void lights() {
   update_clock();
-  long j=(u/333)%16;
-  #ifdef SWITCH
-  switch(j) {
-    case 0:
-    case 8:
-      light(000+(h*5+m/12)%60); //hour hand
-      break;
-    case 1:
-    case 2:
-    case 9:
-      light(100+m);             //minute hand
-      break;
-    case 3:
-    case 4:
-    case 11:
-      light(200+s);             //second hand
-      break;
-    default:
-      light(300+t); //else dark();             //third hand
-      break;
-  }
-  #else
-  if(j==0 || j==8) {
-    light(000+(h*5+m/12)%60); //hour hand
-  } else if (j==1 || j==2 || j==9) {
-    light(100+m);             //minute hand
-  } else if (j==3 || j==4 || j==11) {
-    light(200+s);             //second hand
-  } else {
-    light(300+t); //else dark();             //third hand
-  }
-  #endif
+  ls[4]=digitalRead(2)?0:60;
+  lightRate++;
+  char j=((char)(lightRate%16));
+  if(ls[multiplex[j]]<60) light(((int)(multiplex[j]%4))*100+ls[multiplex[j]]);
 }  
   
 void loop() {

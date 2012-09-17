@@ -1,8 +1,10 @@
-#define VERBOSE
 #include <PCharlie.h>
 
 void setup() {
   Serial.begin(9600);  
+  PCharlieVerbose=true;
+  allDark();
+  
 }
 
 int oldi=0;

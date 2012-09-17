@@ -3,10 +3,11 @@
 
 #if defined(ARDUINO) && ARDUINO >= 100
   #include "Arduino.h"
-  #else
+#else
   #include "WProgram.h"
-  #endif
+#endif
 
+extern bool PCharlieVerbose;
 void allDark(void);
 void dark(void);
 void light(int);

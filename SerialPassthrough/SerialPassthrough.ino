@@ -4,7 +4,7 @@ void setup() {
   delay(1000);
   Serial.begin(9600);
   delay(1000);
-  Serial.println("$PMTK314,1,1,1,1,1,5,1,1,1,1,1,1,0,1,1,1,1,1,1*2C");
+  Serial.println("$PMTK314,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,1,1*28\r\n");
   delay(10000);
   digitalWrite(13,HIGH);
   Serial.end();
