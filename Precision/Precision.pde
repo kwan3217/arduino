@@ -3,8 +3,8 @@
 void setup() {
   Serial.begin(9600);  
   allDark();
-//  pinMode(12,OUTPUT);
-//  digitalWrite(12,HIGH);
+  pinMode(12,OUTPUT);
+  digitalWrite(12,HIGH);
 //Activate the 20k pullup on the PPS line. With no GPS,
 //this means that the pin will not respond to things like
 //touching the PPS pins. With a GPS, the line will follow
@@ -196,6 +196,7 @@ void expectSecond1(char in) {
 
 volatile unsigned long lightRate=0;
 
+
 #define SWITCH
 
 void lights() {
@@ -204,7 +205,6 @@ void lights() {
   #ifdef SWITCH
   switch(j) {
     case 0:
-    case 8:
       light(000+(h*5+m/12)%60); //hour hand
       break;
     case 1:
