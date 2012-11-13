@@ -206,7 +206,7 @@ void expectSecond0(char in) {
 }
 
 //Hours the local time zone is behind UTC - positive for all US time zones
-const int tz=6;
+const int tz=7;
 
 void expectSecond1(char in) {
   if(in>='0' & in<='9') {
