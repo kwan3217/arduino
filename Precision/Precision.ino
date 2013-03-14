@@ -1,14 +1,24 @@
 #include <PCharlie.h>
 
+//Hours the local time zone is behind UTC - positive for all US time zones
+//No auto adjust for daylight savings time
+const int tz=6;
+
 volatile unsigned long h=0,m=0,s=0,t=0,u=0;
 unsigned long gh=0,gm=0,gs=0;
-volatile int ls[5];         //0 1 2 3 4 5 6 7 8 9 A B C D E F
+//which of the 60 lights in 5 virtual banks is on
+//bank 0=hour, 1=minute, 2=second, 3=third, 4=PPS indicator (re-use of hour)
+//if ls[x]>60, then no lights in bank x will be on
+volatile int ls[5];         
+//Each time the lights are switched, we use this array
+//to tell us which bank to light this time. If a bank
+//appears more often, it will be brighter
+                            //0 1 2 3 4 5 6 7 8 9 A B C D E F
 static const int multiplex[]={2,3,1,3,3,2,3,3,0,3,1,3,4,3,2,3};
 volatile unsigned long last_micro=0;
 volatile unsigned long lightRate=0;
 
 #define MILLION 1000000
-
 
 void setup() {
   Serial.begin(9600);
@@ -17,7 +27,9 @@ void setup() {
   ls[4]=0;
   //Set the ATmega to listen to the GPS, not the USB port
   //Pin 12 - low is GPS, high is USB. There is an external 
-  //pullup, so input is USB also
+  //pullup, so input is USB also. This means that when the
+  //part resets, it automatically switches back to USB, 
+  //otherwise Arduino programming wouldn't work.
   pinMode(12,OUTPUT);
   digitalWrite(12,LOW);
 //Activate the 20k pullup on the PPS line. With no GPS,
@@ -61,8 +73,7 @@ void incClock() {
 void pps() {
   //Otherwise the next update_clock will credit time before the tick to the next update.
   //micros() doesn't update during an interrupt but we don't need it to.
-//  ls[4]++;
-//  if(ls[4]>60) ls[4]=0;
+
   last_micro=micros();
 //If the PPS comes in in the first half of the second 0<=u<500000, presume that the local clock
 //has passed the top of the second on its own and incremented itself. Otherwise, presume that
@@ -204,9 +215,6 @@ void expectSecond0(char in) {
   }
   state=expectDollar;
 }
-
-//Hours the local time zone is behind UTC - positive for all US time zones
-const int tz=7;
 
 void expectSecond1(char in) {
   if(in>='0' & in<='9') {
