@@ -1,8 +1,8 @@
 /*
-  Blink
-  Turns on an LED on for one second, then off for one second, repeatedly.
- 
-  This example code is in the public domain.
+  Pinewood
+  
+  Uses a pair of IR sensors to measure the turns of a wheel of a pinewood
+  derby car and thereby measure its speed and acceleration curve
  */
 
 void setup() {                
@@ -17,8 +17,8 @@ void setup() {
   digitalWrite( 9,LOW );digitalWrite(4,LOW );
   digitalWrite(12,LOW );digitalWrite(7,LOW );
   Serial.begin(9600);
-//  Serial.write(124);
-//  Serial.write(128);
+  Serial.write(124);
+  Serial.write(128);
 }
 
 int wheelrev=0;
@@ -29,17 +29,28 @@ float wheelRad=0.015; //wheel radius in m, 1.5cm
 float wheelCirc=wheelRad*2*PI;
 float dist=0;
 float spd=0,maxspd=0;
-bool checkSensor() {
+long check=0;
+
+int wheelTurnMS[200];
+
+//returns 0 for no motion, +1 for one forward turn, -1 for one backward turn
+//forward is defined as the aft sensor white and the fwd sensor changing from black to white
+//backward is defined as the aft sensor white and the fwd sensor changing from black to white
+int checkSensor() {
+  int result=0;
+//  check++;
   aft=(1023-analogRead(5))>900;
   fwd=(1023-analogRead(0))>900;
   if (fwd!=oldfwd) {
     t=micros();
     if(t0==0) t0=t;
     if(aft) {
-      wheelrev+=(fwd?1:-1);
+      result=(fwd?1:-1);
+      wheelrev+=result;
+      if(fwd) wheelTurnMS[wheelrev]=(t-t0)/1000;
       dist=wheelrev*wheelCirc;
       if(old_t!=0) {
-        spd=wheelCirc/((float)(t-old_t)/1e6);
+        spd=wheelCirc/(((float)(t-old_t))/1e6);
         if(maxspd<spd) maxspd=spd;
       } else {
         old_t=t;
@@ -50,9 +61,9 @@ bool checkSensor() {
     oldaft=aft;
     oldfwd=fwd;
     old_t=t;
-    return true;
+    return result;
   }
-  return false;
+  return result;
 }
 
 void printCheck(char b) {
@@ -74,24 +85,38 @@ void printCheck(int b, int digits) {
 }
 char buf[16];
 void loop() {
-  if (checkSensor()) {
+  int result=checkSensor();
+  if (result==1) {
     printCheck(254); 
-    printCheck(128);
+    printCheck(1);
     printCheck("R");
     printCheck(wheelrev,4);
-    printCheck(" T");
+    printCheck("T");
     dtostrf(((float)(t-t0))/1e6,5,2,buf);
     printCheck(buf);
+//    sprintf(buf,"%d",check);
+//    printCheck(buf);
     printCheck(254); 
     printCheck(192);
     printCheck("S");
-    dtostrf(spd*2.23694,4,1,buf);
+    dtostrf(spd*2.23694,4,1,buf); //Print speed in mph
     printCheck(buf);
-    printCheck(" M");
-    dtostrf(maxspd*2.23694,4,1,buf);
+    printCheck("M");
+    dtostrf(maxspd*2.23694,4,1,buf); //Print max speed in mph
     printCheck(buf);
-    printCheck(" D");
-    dtostrf(dist,5,2,buf);
+    printCheck("D");
+    dtostrf(dist/0.3048,5,2,buf); //Print distance in feet
+    printCheck(buf);
+  } else if(result==-1) {
+    int i=wheelrev+1;
+    if(i<0)i=199;
+    if(i>199)i=i-200;
+    printCheck(254); 
+    printCheck(1);
+    printCheck("RM");
+    printCheck(i,4);
+    printCheck("T");
+    dtostrf(((float)(wheelTurnMS[i]))/1e3,6,3,buf);
     printCheck(buf);
   }
 }
