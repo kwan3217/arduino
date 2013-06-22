@@ -1,4 +1,4 @@
-﻿
+
 // Include the Wire library for I2C access.
 #include <Wire.h>
 // Include the Love Electronics BMP180 library.
