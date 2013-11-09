@@ -2,7 +2,7 @@
 
 //Hours the local time zone is behind UTC - positive for all US time zones
 //No auto adjust for daylight savings time
-const int tz=6;
+const int tz=7;
 
 volatile unsigned long h=0,m=0,s=0,t=0,u=0;
 unsigned long gh=0,gm=0,gs=0;
