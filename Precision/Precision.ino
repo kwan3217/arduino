@@ -4,8 +4,11 @@
 //No auto adjust for daylight savings time
 const int tz=7;
 
-volatile unsigned long h=0,m=0,s=0,t=0,u=0;
-unsigned long gh=0,gm=0,gs=0;
+volatile unsigned long h=0,n=0,s=0,t=0,u=0,d=0,m=0,y=0;
+unsigned long gh=0,gn=0,gs=0,gd=0,gm=0,gy=0;
+
+volatile int ppsCount=0;
+volatile bool lockU=false;
 //which of the 60 lights in 5 virtual banks is on
 //bank 0=hour, 1=minute, 2=second, 3=third, 4=PPS indicator (re-use of hour)
 //if ls[x]>60, then no lights in bank x will be on
@@ -21,8 +24,8 @@ volatile unsigned long lightRate=0;
 #define MILLION 1000000
 
 void setup() {
-  Serial.begin(9600);
-  Serial.print("$PMTK314,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0*28\r\n");  
+  Serial.begin(115200);
+//  Serial.print("$PMTK314,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0*28\r\n");  
   allDark();
   ls[4]=0;
   //Set the ATmega to listen to the GPS, not the USB port
@@ -42,38 +45,51 @@ void setup() {
 }
 
 void incClock() {
+  int loopCount=0;
+  unsigned long oldU=u;
+  unsigned long oldS=s;
+  unsigned long oldN=n;
+  unsigned long oldH=h;
   while(u>=MILLION) {
     s++;
     if(s==60) {
       Serial.print("lightRate: ");
       Serial.println(lightRate,DEC);
+      Serial.print("ppsCount: ");
+      Serial.println(ppsCount,DEC);
+      ppsCount=0;
     }
     lightRate=0;
-    
+    lockU=true;
     u-=MILLION;
+    lockU=false;
   }
   t=u*60/MILLION;
   while(s>=60) {
-    m++;
+    n++;
     s-=60;
   }
-  while(m>=60) {
+  while(n>=60) {
     h++;
-    m-=60;
+    n-=60;
   }
   while(h>=24) {
     h-=24;
   }
-  ls[0]=(h*5+m/12)%60;
-  ls[1]=m;
+  ls[0]=(h*5+n/12)%60;
+  ls[1]=n;
   ls[2]=s;
   ls[3]=t;
+  if(loopCount>0) {
+      Serial.print("oldU: ");
+      Serial.println(oldU,DEC);
+  }
 }
 
 void pps() {
   //Otherwise the next update_clock will credit time before the tick to the next update.
   //micros() doesn't update during an interrupt but we don't need it to.
-
+  if(lockU)return;
   last_micro=micros();
 //If the PPS comes in in the first half of the second 0<=u<500000, presume that the local clock
 //has passed the top of the second on its own and incremented itself. Otherwise, presume that
@@ -83,6 +99,7 @@ void pps() {
     incClock();
   }
   u=0;  
+  ppsCount++;
 }
 
 void update_clock() {
@@ -191,7 +208,7 @@ void expectHour1(char in) {
 
 void expectMinute0(char in) {
   if(in>='0' && in<='9') {
-    gm=(in-'0')*10;
+    gn=(in-'0')*10;
     state=expectMinute1;
     return;
   }
@@ -200,7 +217,7 @@ void expectMinute0(char in) {
 
 void expectMinute1(char in) {
   if(in>='0' && in<='9') {
-    gm+=(in-'0');
+    gn+=(in-'0');
     state=expectSecond0;
     return;
   }
@@ -220,20 +237,48 @@ void expectSecond1(char in) {
   if(in>='0' & in<='9') {
     gs+=(in-'0');
     //Validate GPS time
-    if(gh>=0 && gh<24 && gm>=0 && gm<60 && gs>=0 && gs<60) {
+    if(gh>=0 && gh<24 && gn>=0 && gn<60 && gs>=0 && gs<60) {
       //Time is valid
-      h=(gh+24-tz)%12;m=gm;s=gs;
+      h=(gh+24-tz)%12;n=gn;s=gs;
+      state=expectDollar;
+      return;
     } else {
       Serial.print("Problem with GPS time: ");
       if(gh<10) Serial.print("0");
       Serial.print(gh,DEC);
       Serial.print(":");
-      if(gm<10) Serial.print("0");
-      Serial.print(gm,DEC);
+      if(gn<10) Serial.print("0");
+      Serial.print(gn,DEC);
       Serial.print(":");
       if(gs<10) Serial.print("0");
       Serial.println(gs,DEC);
     }
+  }
+  state=expectDollar;
+}
+
+void expectComma1(char in) {
+  if(in==',') {
+    state=expectDay0;
+    return;
+  }
+  state=expectDollar;
+}
+
+void expectDay0(char in) {
+  if(in>='0' && in<='9') {
+    gd=(in-'0')*10;
+    state=expectDay1;
+    return;
+  }
+  state=expectDollar;
+}
+
+void expectDay1(char in) {
+  if(in>='0' && in<='9') {
+    gd+=(in-'0');
+    state=expectDollar;
+    return;
   }
   state=expectDollar;
 }
