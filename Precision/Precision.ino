@@ -4,10 +4,10 @@
 //No auto adjust for daylight savings time
 const int tz=7;
 
-volatile unsigned long h=0,n=0,s=0,t=0,u=0,d=0,m=0,y=0;
-unsigned long gh=0,gn=0,gs=0,gd=0,gm=0,gy=0;
+volatile signed long h=0,n=0,s=0,t=0,u=0,d=0,m=0,y=0;
+signed long gh=0,gn=0,gs=0,gd=0,gm=0,gy=0;
 
-volatile int ppsCount=0;
+volatile int ppsCount=0,validgps=0;
 volatile bool lockU=false;
 //which of the 60 lights in 5 virtual banks is on
 //bank 0=hour, 1=minute, 2=second, 3=third, 4=PPS indicator (re-use of hour)
@@ -18,14 +18,14 @@ volatile int ls[5];
 //appears more often, it will be brighter
                             //0 1 2 3 4 5 6 7 8 9 A B C D E F
 static const int multiplex[]={2,3,1,3,3,2,3,3,0,3,1,3,4,3,2,3};
-volatile unsigned long last_micro=0;
-volatile unsigned long lightRate=0;
+volatile signed long last_micro=0;
+volatile signed long lightRate=0;
 
 #define MILLION 1000000
 
 void setup() {
   Serial.begin(115200);
-//  Serial.print("$PMTK314,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0*28\r\n");  
+  Serial.print("$PMTK314,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0*28\r\n");  
   allDark();
   ls[4]=0;
   //Set the ATmega to listen to the GPS, not the USB port
@@ -46,10 +46,10 @@ void setup() {
 
 void incClock() {
   int loopCount=0;
-  unsigned long oldU=u;
-  unsigned long oldS=s;
-  unsigned long oldN=n;
-  unsigned long oldH=h;
+  signed long oldU=u;
+  signed long oldS=s;
+  signed long oldN=n;
+  signed long oldH=h;
   while(u>=MILLION) {
     s++;
     if(s==60) {
@@ -57,7 +57,15 @@ void incClock() {
       Serial.println(lightRate,DEC);
       Serial.print("ppsCount: ");
       Serial.println(ppsCount,DEC);
+      Serial.print("validgps: ");
+      Serial.println(validgps,DEC);
+      if(gh<10) Serial.print('0');Serial.print(gh,DEC);
+      Serial.print(":");
+      if(gn<10) Serial.print('0');Serial.print(gn,DEC);
+      Serial.print(":");
+      if(gs<10) Serial.print('0');Serial.println(gs,DEC);
       ppsCount=0;
+      validgps=0;
     }
     lightRate=0;
     lockU=true;
@@ -241,6 +249,7 @@ void expectSecond1(char in) {
       //Time is valid
       h=(gh+24-tz)%12;n=gn;s=gs;
       state=expectDollar;
+      validgps++;
       return;
     } else {
       Serial.print("Problem with GPS time: ");
