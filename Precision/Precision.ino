@@ -193,6 +193,7 @@ void expectComma0(char in) {
     state=expectHour0;
     return;
   }
+      Serial.println("Problem with GPS time: Comma0");
   state=expectDollar;
 }
 
@@ -202,6 +203,7 @@ void expectHour0(char in) {
     state=expectHour1;
     return;
   }
+      Serial.println("Problem with GPS time: Hour0");
   state=expectDollar;
 }
 
@@ -211,6 +213,7 @@ void expectHour1(char in) {
     state=expectMinute0;
     return;
   }
+      Serial.println("Problem with GPS time: Hour1");
   state=expectDollar;
 }
 
@@ -220,6 +223,7 @@ void expectMinute0(char in) {
     state=expectMinute1;
     return;
   }
+      Serial.println("Problem with GPS time: Minute0");
   state=expectDollar;
 }
 
@@ -229,6 +233,7 @@ void expectMinute1(char in) {
     state=expectSecond0;
     return;
   }
+      Serial.println("Problem with GPS time: Minute1");
   state=expectDollar;
 }
 
@@ -238,6 +243,7 @@ void expectSecond0(char in) {
     state=expectSecond1;
     return;
   }
+      Serial.println("Problem with GPS time: Second0");
   state=expectDollar;
 }
 
