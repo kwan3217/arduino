@@ -16,7 +16,7 @@ void setup() {
   digitalWrite( 8,HIGH);digitalWrite(3,HIGH);
   digitalWrite( 9,LOW );digitalWrite(4,LOW );
   digitalWrite(12,LOW );digitalWrite(7,LOW );
-  Serial.begin(9600);
+  Serial.begin(115200);
   Serial.write(124);
   Serial.write(128);
 }
@@ -56,8 +56,6 @@ int checkSensor() {
         old_t=t;
       }
     }
-    if(wheelrev>999) wheelrev-=1000;
-    if(wheelrev<0) wheelrev+=1000;
     oldaft=aft;
     oldfwd=fwd;
     old_t=t;
@@ -87,8 +85,6 @@ char buf[16];
 void loop() {
   int result=checkSensor();
   if (result==1) {
-    printCheck(254); 
-    printCheck(1);
     printCheck("R");
     printCheck(wheelrev,4);
     printCheck("T");
@@ -96,8 +92,7 @@ void loop() {
     printCheck(buf);
 //    sprintf(buf,"%d",check);
 //    printCheck(buf);
-    printCheck(254); 
-    printCheck(192);
+    printCheck("\n"); 
     printCheck("S");
     dtostrf(spd*2.23694,4,1,buf); //Print speed in mph
     printCheck(buf);
@@ -107,16 +102,16 @@ void loop() {
     printCheck("D");
     dtostrf(dist/0.3048,5,2,buf); //Print distance in feet
     printCheck(buf);
+    printCheck("\n");
   } else if(result==-1) {
     int i=wheelrev+1;
     if(i<0)i=199;
     if(i>199)i=i-200;
-    printCheck(254); 
-    printCheck(1);
     printCheck("RM");
     printCheck(i,4);
     printCheck("T");
     dtostrf(((float)(wheelTurnMS[i]))/1e3,6,3,buf);
     printCheck(buf);
+    printCheck("\n");
   }
 }

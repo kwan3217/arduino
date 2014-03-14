@@ -2,7 +2,7 @@
 
 //Hours the local time zone is behind UTC - positive for all US time zones
 //No auto adjust for daylight savings time
-const int tz=7;
+const int tz=6;
 
 volatile signed long h=0,n=0,s=0,t=0,u=0,d=0,m=0,y=0;
 signed long gh=0,gn=0,gs=0,gd=0,gm=0,gy=0;
@@ -21,7 +21,7 @@ static const int multiplex[]={2,3,1,3,3,2,3,3,0,3,1,3,4,3,2,3};
 volatile signed long last_micro=0;
 volatile signed long lightRate=0;
 
-#define MILLION 1000000
+const unsigned long MILLION=1000000;
 
 void setup() {
   Serial.begin(115200);
@@ -44,13 +44,18 @@ void setup() {
   attachInterrupt(0,pps,RISING);
 }
 
-void incClock() {
-  int loopCount=0;
-  signed long oldU=u;
+void setClockLights() {
+  ls[0]=(h*5+n/12)%60;
+  ls[1]=n;
+  ls[2]=s;
+  ls[3]=t;
+}
+
+void pps() {
+  ppsCount++;
   signed long oldS=s;
   signed long oldN=n;
   signed long oldH=h;
-  while(u>=MILLION) {
     s++;
     if(s==60) {
       Serial.print("lightRate: ");
@@ -68,11 +73,8 @@ void incClock() {
       validgps=0;
     }
     lightRate=0;
-    lockU=true;
-    u-=MILLION;
-    lockU=false;
-  }
-  t=u*60/MILLION;
+  u=0;
+  
   while(s>=60) {
     n++;
     s-=60;
@@ -84,30 +86,7 @@ void incClock() {
   while(h>=24) {
     h-=24;
   }
-  ls[0]=(h*5+n/12)%60;
-  ls[1]=n;
-  ls[2]=s;
-  ls[3]=t;
-  if(loopCount>0) {
-      Serial.print("oldU: ");
-      Serial.println(oldU,DEC);
-  }
-}
-
-void pps() {
-  //Otherwise the next update_clock will credit time before the tick to the next update.
-  //micros() doesn't update during an interrupt but we don't need it to.
-  if(lockU)return;
-  last_micro=micros();
-//If the PPS comes in in the first half of the second 0<=u<500000, presume that the local clock
-//has passed the top of the second on its own and incremented itself. Otherwise, presume that
-//the local clock has not passed the top of the second, and therefore needs to be incremented.
-  if(u>(MILLION/2)) {
-    u=MILLION;
-    incClock();
-  }
-  u=0;  
-  ppsCount++;
+  setClockLights();
 }
 
 void update_clock() {
@@ -124,8 +103,9 @@ void update_clock() {
   } else {
     u+=(this_micro-last_micro);
   }
-  incClock();
+  t=u*60/MILLION;
   last_micro=this_micro;
+  setClockLights();
 }
 
 //GPRMC parsing
