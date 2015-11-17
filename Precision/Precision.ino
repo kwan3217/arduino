@@ -174,7 +174,7 @@ void expectComma0(char in) {
     state=expectHour0;
     return;
   }
-      Serial.println("Problem with GPS time: Comma0");
+  Serial.println("Problem with GPS time: Comma0");
   state=expectDollar;
 }
 
@@ -184,7 +184,7 @@ void expectHour0(char in) {
     state=expectHour1;
     return;
   }
-      Serial.println("Problem with GPS time: Hour0");
+  Serial.println("Problem with GPS time: Hour0");
   state=expectDollar;
 }
 
@@ -194,7 +194,7 @@ void expectHour1(char in) {
     state=expectMinute0;
     return;
   }
-      Serial.println("Problem with GPS time: Hour1");
+  Serial.println("Problem with GPS time: Hour1");
   state=expectDollar;
 }
 
@@ -204,7 +204,7 @@ void expectMinute0(char in) {
     state=expectMinute1;
     return;
   }
-      Serial.println("Problem with GPS time: Minute0");
+  Serial.println("Problem with GPS time: Minute0");
   state=expectDollar;
 }
 
@@ -214,7 +214,7 @@ void expectMinute1(char in) {
     state=expectSecond0;
     return;
   }
-      Serial.println("Problem with GPS time: Minute1");
+  Serial.println("Problem with GPS time: Minute1");
   state=expectDollar;
 }
 
@@ -224,7 +224,7 @@ void expectSecond0(char in) {
     state=expectSecond1;
     return;
   }
-      Serial.println("Problem with GPS time: Second0");
+  Serial.println("Problem with GPS time: Second0");
   state=expectDollar;
 }
 
@@ -233,10 +233,11 @@ int commasToCount;
 void expectSecond1(char in) {
   if(in>='0' & in<='9') {
     gs+=(in-'0');
-    commasToCount=6;
+    commasToCount=8;
     state=countCommaToDate;
     return;
   }
+  Serial.println("Problem with GPS time: Second0");
   state=expectDollar;
 }
 
@@ -254,6 +255,7 @@ void expectDay0(char in) {
     state=expectDay1;
     return;
   }
+  Serial.println("Problem with GPS time: Day0");
   state=expectDollar;
 }
 
@@ -263,6 +265,7 @@ void expectDay1(char in) {
     state=expectMonth0;
     return;
   }
+  Serial.println("Problem with GPS time: Day1");
   state=expectDollar;
 }
 
@@ -272,6 +275,7 @@ void expectMonth0(char in) {
     state=expectMonth1;
     return;
   }
+  Serial.println("Problem with GPS time: Month0");
   state=expectDollar;
 }
 
@@ -281,6 +285,7 @@ void expectMonth1(char in) {
     state=expectYear0;
     return;
   }
+  Serial.println("Problem with GPS time: Month1");
   state=expectDollar;
 }
 
@@ -290,6 +295,7 @@ void expectYear0(char in) {
     state=expectYear1;
     return;
   }
+  Serial.println("Problem with GPS time: Year0");
   state=expectDollar;
 }
 
@@ -312,16 +318,26 @@ int day_of_week(int year, int month, int day) {
 //Return - true if in DST, false if not
 bool isDST(int year, int month, int day, int hour) {
   bool result=false;
+  const bool verbose=false;
+  if(verbose){
+    Serial.print(year);Serial.print(',');
+    Serial.print(month);Serial.print(',');
+    Serial.print(day);Serial.print(',');
+    Serial.println(hour);
+  }
   if(useDST) {
     //Is DST in effect?
-    if(m < 3) { //Before March, not DST
+    if(month < 3) { //Before March, not DST
       result=false;
-    } else if (m>11) { //After November, not DST
+      if(verbose)Serial.println("Before March, not DST");
+    } else if (month>11) { //After November, not DST
       result=false;
-    } else if (m>3 && m<11) { //After march and before November, in DST
+      if(verbose)Serial.println("After November, not DST");
+    } else if (month>3 && month<11) { //After march and before November, in DST
       result=true;
-    } else if(m==3) { //In March, figure out what day is the second Sunday in March
-      int firstDayOfMarch=day_of_week(y,3,1);
+      if(verbose)Serial.println("After March and before November, in DST");
+    } else if(month==3) { //In March, figure out what day is the second Sunday in March
+      int firstDayOfMarch=day_of_week(year,3,1);
       if(firstDayOfMarch==0)firstDayOfMarch=7;
       //What day is March 1?   Number    Second sunday
       //         Sunday           0 (7)              8  (15-n)
@@ -332,13 +348,23 @@ bool isDST(int year, int month, int day, int hour) {
       //         Friday           5                 10  (15-n)
       //         Saturday         6                  9  (15-n)
       int secondSunday=15-firstDayOfMarch;
-      if(d<secondSunday) {
+      if(verbose) {
+        Serial.print("In March ");
+        Serial.print(" day=");Serial.print(day);
+        Serial.print(" secondSunday=");Serial.print(secondSunday);
+      }
+      if(day<secondSunday) {
         result=false;
-      else if(d>secondSunday) {
+        if(verbose)Serial.println("Before second Sunday, not DST");
+      } else if(day>secondSunday) {
         result=true;
-      else result=(h>=2);
+        if(verbose)Serial.println("After second Sunday, in DST");
+      } else {
+        result=(hour>=2);
+        if(verbose){Serial.print("On second Sunday, hour=");Serial.print(hour);Serial.print(", DST is");Serial.println(result?"on":"off");}
+      }
     } else { //Only November is left;            
-      int firstDay=day_of_week(y,3,1);
+      int firstDay=day_of_week(year,3,1);
       if(firstDay==0)firstDay=7;
       //What day is November 1?   Number    First sunday
       //         Sunday           0 (7)              1  (8-n)
@@ -349,11 +375,21 @@ bool isDST(int year, int month, int day, int hour) {
       //         Friday           5                  3  (8-n)
       //         Saturday         6                  2  (8-n)
       int firstSunday=8-firstDay;
-      if(d<firstSunday) {
+      if(verbose){
+        Serial.print("In November ");
+        Serial.print(" day=");Serial.print(day);
+        Serial.print(" firstSunday=");Serial.print(firstSunday);
+      }
+      if(day<firstSunday) {
+        if(verbose)Serial.println("Before first Sunday, in DST");
         result=true;
-      else if(d>firstSunday) {
+      } else if(day>firstSunday) {
+        if(verbose)Serial.println("After first Sunday, not DST");
         result=false;
-      else result=(h<2);
+      } else {
+        result=(hour<2);
+        if(verbose){Serial.print("On first Sunday, hour=");Serial.print(hour);Serial.print(", DST is");Serial.println(result?"on":"off");}
+      }
     }
   }
   return result;
@@ -374,7 +410,8 @@ void expectYear1(char in) {
         d--; //Might result in d=0, but we don't care, below will still work 
       }
       //Now change h to 12 hour and account for DST
-      h=(h+isDST(y,m,d,h)?1:0)%12
+      bool thisDST=isDST(y,m,d,h);
+      h=(h+(thisDST?1:0))%12;
     } else {
       Serial.print("Problem with GPS time: ");
       if(gh<10) Serial.print("0");
