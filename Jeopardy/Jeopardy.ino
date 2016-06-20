@@ -1,30 +1,26 @@
 /*
-  Blink
-  Turns on an LED on for one second, then off for one second, repeatedly.
- 
-  This example code is in the public domain.
+  Jeopardy - uses three Big Red Buttons to run a game-show type game. 
+  When the program is reset, it watches for which of the three buttons
+  is pressed first. That one then has its light blinked a few times,
+  then stays on. Buttons are reset by the reset switch on the Arduino.
  */
  
 
-// the setup routine runs once when you press reset:
 void setup() {                
   // initialize the digital pin as an output.
-  pinMode(2,OUTPUT);
-  pinMode(3,OUTPUT);
-  pinMode(4,INPUT);
-  pinMode(5,OUTPUT);
-  pinMode(6,OUTPUT);
-  pinMode(7,INPUT);
-  pinMode(8,OUTPUT);
-  pinMode(9,OUTPUT);
-  pinMode(10,INPUT);
+  pinMode(3,OUTPUT); //Button 1 light
+  pinMode(4,INPUT);  //Button 1 switch
+  pinMode(6,OUTPUT); //Button 2 light
+  pinMode(7,INPUT);  //Button 2 switch
+  pinMode(9,OUTPUT); //Button 3 light
+  pinMode(10,INPUT); //Button 3 switch
   digitalWrite(4,HIGH);
   digitalWrite(7,HIGH);
   digitalWrite(10,HIGH);
 }
 
-// the loop routine runs over and over again forever:
 void loop() {
+  //Check each button in turn. If the button is pressed, blink the light, then leav it on.
   if(digitalRead(4)) {
     for(int i=0;i<3;i++) {
       digitalWrite(3, HIGH);   // turn the LED on (HIGH is the voltage level)
