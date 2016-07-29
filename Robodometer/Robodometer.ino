@@ -1,19 +1,19 @@
 //Robodometer. See theory documentation at https://github.com/kwan3217/Yukari4Python/wiki/Odometry
 
 struct State {
-  /* 0x00 */ uint32_t T0;
-  /* 0x04 */ int32_t  WC;
-  /* 0x08 */ uint32_t DT;
-  /* 0x0C */ uint32_t T1;
-  /* 0x10 */ uint16_t ID;
-  /* 0x12 */ uint16_t RST;
-  /* 0x14 */ uint16_t A[2];
-  /* 0x16 */ uint16_t A_min[2];
-  /* 0x18 */ uint16_t A_max[2];
-  /* 0x1A */ uint16_t A_low[2];
-  /* 0x1C */ uint16_t A_high[2];
-  /* 0x1E */ uint8_t  A_lowfrac[2];
-  /* 0x1F */ uint8_t  A_highfrac[2];
+  /* 0x00      */ uint32_t T0;
+  /* 0x04      */ int32_t  WC;
+  /* 0x08      */ uint32_t DT;
+  /* 0x0C      */ uint32_t T1;
+  /* 0x10      */ uint16_t ID;
+  /* 0x12      */ uint16_t RST;
+  /* 0x14,0x16 */ uint16_t A[2];
+  /* 0x18,0x1A */ uint16_t A_min[2];
+  /* 0x1C,0x1E */ uint16_t A_max[2];
+  /* 0x20,0x22 */ uint16_t A_low[2];
+  /* 0x24,0x26 */ uint16_t A_high[2];
+  /* 0x28,0x29 */ uint8_t  A_lowfrac[2];
+  /* 0x2A,0x2B */ uint8_t  A_highfrac[2];
 };
 
 static union {
