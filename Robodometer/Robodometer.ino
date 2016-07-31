@@ -1,36 +1,36 @@
-//Program Robodometer. Software which resides in the microcontroller 
-//which manages the readout of an optical wheel encoder.
-//
-//This is a simple I2C slave. The system is presented as an address space
-//of R/W registers, as follows
-//
-// Address   Name   format   Range
-//    0        A0     U16     [0,1023]                   Analog Read 0
-//    1        A1     U16     [0,1023]                   Analog Read 4
-//    2        TS     U32     [0,0xFFFF'FFFF]            Time at start of read
-//    3        TP     U32     [0,0xFFFF'FFFF]            Time at end of read
-//    4        W*     I32     [-0x8000'0000-0x7FFF'FFFF] Count of wheel quarter-rotations
-//    5        TW     U32     [0,0xFFFF'FFFF]            Time of last encoder click
-//    6        DT     U32     [0,0xFFFF'FFFF]            Time between last two encoder clicks, proportional to inverse of speed
-//    7        RST    U8      -                          Write to reset the integer part of the wheel rotation counter
-// W is a bit special. The lower two bits indicate the current quadrant
-//(in normal binary, not Gray code) and may start at any number in range [0,3]
-//while the higher bits indicate the number of rotations since the encoder was
-//reset.
-// Wire protocol is byte-little-endian. Signed numbers use two's complement form.
-//Hookup is with a pair of servo connections, as follows
-//Encoder 0 - A0 signal
-//            A1 power
-//            A2 ground A2
-//               power  A3 
-//               signal A4 - Encoder 1
-//
-//There is also a pure digital GPIO interface - pins D7 and D8 represent the
-//digital value of encoder A0 and A4 respectively. These pins are used because
-//they have no alternate function, either I2C, SPI, UART, or analog.
-#include <Wire.h>
+//Robodometer. See theory documentation at https://github.com/kwan3217/Yukari4Python/wiki/Odometry
 
-uint32_t regs[]={0,0,0,0};
+struct State {
+  /* 0x00      */ uint32_t T0;
+  /* 0x04      */ int32_t  WC;
+  /* 0x08      */ uint32_t DT;
+  /* 0x0C      */ uint32_t T1;
+  /* 0x10      */ uint16_t ID;
+  /* 0x12      */ uint16_t RST;
+  /* 0x14,0x16 */ uint16_t A[2];
+  /* 0x18,0x1A */ uint16_t A_min[2];
+  /* 0x1C,0x1E */ uint16_t A_max[2];
+  /* 0x20,0x22 */ uint16_t A_low[2];
+  /* 0x24,0x26 */ uint16_t A_high[2];
+  /* 0x28,0x29 */ uint8_t  A_lowfrac[2];
+  /* 0x2A,0x2B */ uint8_t  A_highfrac[2];
+};
+
+static union {
+  char regs[0x2C];
+  State state;
+};
+
+bool black[2];
+unsigned int sector;
+int32_t wheelCount;
+uint32_t T0[4]; //Time we entered the sector two clicks ago
+uint32_t T1[4]; //Time we entered the sector last click
+
+//Index: natural binary number
+//Value: Gray code for that index
+//Works as its own inverse IE grayCode[grayCode[i]]=i meaning it can be used to encode or decode
+const int grayCode[4]={0,1,3,2};
 
 void setup() {
   pinMode(A0,INPUT);
@@ -38,29 +38,93 @@ void setup() {
   pinMode(A2,OUTPUT);
   pinMode(A3,OUTPUT);
   pinMode(A4,INPUT);
-  pinMode( 7,OUTPUT);
-  pinMode( 8,OUTPUT);
+  pinMode(13,OUTPUT);
   digitalWrite(A2,LOW);
   digitalWrite(A1,HIGH);
   digitalWrite(A3,HIGH);
-  digitalWrite( 7,LOW);
-  digitalWrite( 8,HIGH);
-  Serial.begin(115200);
-  Serial.println("Tstart,A0,A1,Tstop");
+  digitalWrite(13,LOW);
+  for(int i=0;i<2;i++) {
+    black[i]=false;
+    state.A_min[i]=300;
+    state.A_max[i]=300;
+    state.A_low[i]=300;
+    state.A_high[i]=300;
+    state.A_lowfrac[i]=32;
+    state.A_highfrac[i]=96;
+  }
+  Serial.begin(38400);
+  Serial.println("Tstart,A0,A0min,A0max,A0low,A0high,black0,A1,A1min,A1max,A1low,A1high,black1,sector");
+}
+
+void readSensors() {
+  state.T0=micros();
+  state.A[0]=analogRead(0);
+  state.A[1]=analogRead(4);
+  state.T1=micros();
+}
+
+void figureThreshold(int i) {
+  uint32_t range;
+  range=state.A_max[i]-state.A_min[i];
+  state.A_low [i]=range*state.A_lowfrac [i]/255+state.A_min[0];
+  state.A_high[i]=range*state.A_highfrac[i]/255+state.A_min[0];
+}
+
+void figure() {
+  for(int i=0;i<2;i++) {
+    if(black[i] && state.A[i]<state.A_low[i]) {
+      black[i]=false;
+    } else if(!black[i] && state.A[i]>state.A_high[i]) {
+      black[i]=true;
+    }
+    if(state.A_min[i]>state.A[i]) {
+      state.A_min[i]=state.A[i];
+      figureThreshold(i);
+    }
+    if(state.A_max[i]<state.A[i]) {
+      state.A_max[i]=state.A[i];
+      figureThreshold(i);
+    }
+  }
+  digitalWrite(13,black[0]);
+  int currentSector=grayCode[black[0]<<1 | black[1]];
+  if(sector==3 && currentSector==0) {
+    wheelCount++;
+  } else if(sector==0 && currentSector==3) {
+    wheelCount--;
+  }
+  sector=currentSector;
+  state.WC=(wheelCount<<2)+sector;
+}
+
+void printState() {
+  Serial.print(state.T0);
+  Serial.print(',');
+  for(int i=0;i<2;i++) {
+    Serial.print(state.A[i]);
+    Serial.print(',');
+    Serial.print(state.A_min[i]);
+    Serial.print(',');
+    Serial.print(state.A_max[i]);
+    Serial.print(',');
+    Serial.print(state.A_low[i]);
+    Serial.print(',');
+    Serial.print(state.A_high[i]);
+    Serial.print(',');
+    Serial.print(black[i]);
+    Serial.print(',');
+  }
+  Serial.print(wheelCount);
+  Serial.print(',');
+  Serial.print(sector);
+  Serial.print(',');
+  Serial.print(state.WC);
+  Serial.println();
 }
 
 void loop() {
-  regs[2]=micros();
-  regs[0]=analogRead(0);
-  regs[1]=analogRead(4);
-  regs[3]=micros();
-  Serial.print(regs[2]);
-  Serial.print(',');
-  Serial.print(regs[0]);
-  Serial.print(',');
-  Serial.print(regs[1]);
-  Serial.print(',');
-  Serial.println(regs[3]);
+  readSensors();
+  figure();
+  printState();
 }
-
 
