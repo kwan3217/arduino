@@ -201,8 +201,8 @@ typedef void (*callback_f)(int& regAddr);
   static void  __attribute__((signal,__INTR_ATTRS)) TWI_vect(void);
 public:
   void begin(int Laddr, char* Lreg);
-  void onReceive(callback_f); 
-  void onRequest(callback_f); 
+  void onReceive(callback_f LonReceive) {client_onReceive=LonReceive;}; 
+  void onRequest(callback_f LonRequest) {client_onRequest=LonRequest;};
 };
 
 extern WireSlaveReg SlaveReg;
