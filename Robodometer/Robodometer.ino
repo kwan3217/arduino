@@ -1,6 +1,7 @@
 //Robodometer. See theory documentation at https://github.com/kwan3217/roboSim/wiki/Odometry
 
 #include <WireSlaveReg.h>
+#include <Servo.h>
 
 struct State {
   /* 0x00      */  int32_t WC;
@@ -23,6 +24,8 @@ struct State {
 
 State state;
 char* regs=(char*)&state;
+Servo steering;
+Servo throttle;
 
 bool black[2];
 unsigned int sector;
@@ -87,6 +90,10 @@ void setup() {
   Serial.print("servo_total: ");Serial.println((char*)&state.servo_total-regs,HEX);
   Serial.print("serial: ");Serial.println((char*)&state.serial-regs,HEX);
 */
+  steering.attach(5);
+  throttle.attach(6);
+  steering.write(1500);
+  throttle.write(1500);
 }
 
 void readSensors() {
@@ -97,9 +104,13 @@ void readSensors() {
 }
 
 void receiveEvent(int& regAddr) {
-  Serial.print(regAddr,HEX);
+  if(regAddr==0x2D) {
+    steering.write(state.servo_high[0]*10);
+  } else if(regAddr==0x2F) {
+    throttle.write(state.servo_high[1]*10);
+  }
   if(regAddr==0x34) {
-    Serial.print(regs[regAddr]);         // print the character
+//    Serial.print(regs[regAddr]);         // print the character
   } else {
     regAddr++;
     if(regAddr==0x0C) regAddr=0;
@@ -107,7 +118,6 @@ void receiveEvent(int& regAddr) {
 }
 
 void requestEvent(int& regAddr) {
-  Serial.print(regAddr,HEX);
   if(regAddr==0x34) {
 
   } else {
@@ -148,9 +158,7 @@ void figure() {
   }
   if(sector!=currentSector) {
     T0[currentSector]=T1[currentSector];
-    state.T0=T0[currentSector];
     T1[currentSector]=micros();
-    state.T1=T1[currentSector];
     state.DT=T1[currentSector]-T0[currentSector];
   }
   sector=currentSector;
@@ -160,7 +168,10 @@ void figure() {
 void loop() {
 //  readSensors();
 //  figure();
-  static uint16_t count=0;
-  Serial.println(count++);
+//  static uint16_t count=0;
+//  Serial.println(count++);
+  Serial.print(state.servo_high[0],DEC);
+  Serial.print(',');
+  Serial.println(state.servo_high[1],DEC);
 }
 
