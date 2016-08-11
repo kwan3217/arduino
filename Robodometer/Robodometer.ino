@@ -44,10 +44,14 @@ void setup() {
   pinMode(A1,OUTPUT);
   pinMode(A2,OUTPUT);
   pinMode(A3,INPUT);
+  pinMode(A4,INPUT);
+  pinMode(A5,INPUT);
   pinMode(13,OUTPUT);
   digitalWrite(A2,LOW);
   digitalWrite(A1,HIGH);
   digitalWrite(13,LOW);
+  digitalWrite(A4,1);
+  digitalWrite(A5,1);
   state.ID=0x3217;
   for(int i=0;i<2;i++) {
     black[i]=false;
@@ -65,6 +69,7 @@ void setup() {
   SlaveReg.onReceive(receiveEvent); // register event
   SlaveReg.onRequest(requestEvent); // register event
   SlaveReg.begin(0x55,regs);
+/*
   Serial.print("WC: ");Serial.println((char*)&state.WC-regs,HEX);
   Serial.print("DT: ");Serial.println((char*)&state.DT-regs,HEX);
   Serial.print("T0: ");Serial.println((char*)&state.T0-regs,HEX);
@@ -81,6 +86,7 @@ void setup() {
   Serial.print("servo_high: ");Serial.println((char*)&state.servo_high-regs,HEX);
   Serial.print("servo_total: ");Serial.println((char*)&state.servo_total-regs,HEX);
   Serial.print("serial: ");Serial.println((char*)&state.serial-regs,HEX);
+*/
 }
 
 void readSensors() {
@@ -151,34 +157,10 @@ void figure() {
   state.WC=(wheelCount<<2)+sector;
 }
 
-void printState() {
-  Serial.print(state.T0);
-  Serial.print(',');
-  for(int i=0;i<2;i++) {
-    Serial.print(state.A[i]);
-    Serial.print(',');
-    Serial.print(state.A_min[i]);
-    Serial.print(',');
-    Serial.print(state.A_max[i]);
-    Serial.print(',');
-    Serial.print(state.A_low[i]);
-    Serial.print(',');
-    Serial.print(state.A_high[i]);
-    Serial.print(',');
-    Serial.print(black[i]);
-    Serial.print(',');
-  }
-  Serial.print(wheelCount);
-  Serial.print(',');
-  Serial.print(sector);
-  Serial.print(',');
-  Serial.print(state.WC);
-  Serial.println();
-}
-
 void loop() {
-  readSensors();
-  figure();
-//  printState();
+//  readSensors();
+//  figure();
+  static uint16_t count=0;
+  Serial.println(count++);
 }
 

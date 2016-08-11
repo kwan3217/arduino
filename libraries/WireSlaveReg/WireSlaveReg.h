@@ -66,6 +66,8 @@ union TWI_statusReg_t {
     };
 };
 
+extern "C" void  __attribute__((signal,__INTR_ATTRS)) TWI_vect(void);
+
 /** Implements a register protocol on top of the I2C wire protocol.
  *  The Wire library doesn't seem to work for me in the slave mode,
  *  namely it looks like the slave has to know how many bytes
@@ -198,7 +200,7 @@ typedef void (*callback_f)(int& regAddr);
   unsigned char TWI_state    = TWI_NO_STATE;  // State byte. Default set to TWI_NO_STATE.
   union TWI_statusReg_t TWI_statusReg = {0};           // TWI_statusReg is defined in TWI_Slave.h
 
-  static void  __attribute__((signal,__INTR_ATTRS)) TWI_vect(void);
+  friend void TWI_vect(void);
 public:
   void begin(int Laddr, char* Lreg);
   void onReceive(callback_f LonReceive) {client_onReceive=LonReceive;}; 
