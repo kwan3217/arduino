@@ -49,7 +49,7 @@ void TWI_vect() {
              (1<<TWEA)|(0<<TWSTA)|(0<<TWSTO)|           // 
              (0<<TWWC);                                 //
       // Data is committed to send, tell the client and update the pointer
-      //SlaveReg.client_onRequest(SlaveReg.addr);
+      SlaveReg.client_onRequest(SlaveReg.addr);
       break;
     case WireSlaveReg::TWI_STX_DATA_NACK:          // Data byte in TWDR has been transmitted; NACK has been received. 
                                      // I.e. this could be the end of the transmission.
@@ -75,9 +75,10 @@ void TWI_vect() {
     case WireSlaveReg::TWI_SRX_GEN_DATA_ACK:       // Previously addressed with general call; data has been received; ACK has been returned
       if(SlaveReg.regAddrIncoming) {
         SlaveReg.addr=TWDR;
+        SlaveReg.regAddrIncoming=false;
       } else {
         SlaveReg.reg[SlaveReg.addr]=TWDR;
-      //  SlaveReg.client_onReceive(SlaveReg.addr);
+        SlaveReg.client_onReceive(SlaveReg.addr);
       }
       SlaveReg.TWI_statusReg.lastTransOK = true;                 // Set flag transmission successfully.       
                                                         // Reset the TWI Interrupt to wait for a new event.
