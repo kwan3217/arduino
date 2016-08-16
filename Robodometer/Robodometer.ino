@@ -27,6 +27,7 @@ char* regs=(char*)&state;
 Servo steering;
 Servo throttle;
 
+
 bool black[2];
 unsigned int sector;
 int32_t wheelCount;
@@ -39,7 +40,8 @@ uint32_t T1[4]; //Time we entered the sector last click
 const int grayCode[4]={0,1,3,2};
 
 void initServo(int i) {
-  
+  if(i==0) {steering.write(state.servo_high[i]*10);}
+  if(i==1) {throttle.write(state.servo_high[i]*10);}
 }
 
 void setup() {
@@ -53,8 +55,6 @@ void setup() {
   digitalWrite(A2,LOW);
   digitalWrite(A1,HIGH);
   digitalWrite(13,LOW);
-  digitalWrite(A4,1);
-  digitalWrite(A5,1);
   state.ID=0x3217;
   for(int i=0;i<2;i++) {
     black[i]=false;
@@ -104,6 +104,7 @@ void readSensors() {
 }
 
 void receiveEvent(int& regAddr) {
+  digitalWrite(13,HIGH);
   if(regAddr==0x2D) {
     steering.write(state.servo_high[0]*10);
   } else if(regAddr==0x2F) {
@@ -166,12 +167,11 @@ void figure() {
 }
 
 void loop() {
-//  readSensors();
-//  figure();
-//  static uint16_t count=0;
-//  Serial.println(count++);
-  Serial.print(state.servo_high[0],DEC);
+  readSensors();
+  figure();
+  static uint16_t count=0;
+  Serial.print(state.WC,DEC);
   Serial.print(',');
-  Serial.println(state.servo_high[1],DEC);
+  Serial.println(state.T0,DEC);
 }
 
