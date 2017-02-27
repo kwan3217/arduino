@@ -1,3 +1,4 @@
+//PCharlie.cpp
 #include "PCharlie.h"
 
 bool PCharlieVerbose=false;
@@ -7,9 +8,9 @@ bool PCharlieVerbose=false;
 #define D 3
 
 //ATMega PORTbn addresses of all P charlieplex signals
-                        //1, 2, 3, 4, 5, 6, 7, 8, 9,10,11,12,13,14,15,16
-static const signed char PB[]={-1,B, D, B, B, B, D, D, D, D, C, C, C, C, C, C, B};
-static const signed char PN[]={-1,3, 4, 2, 1, 0, 7, 6, 5, 3, 5, 4, 3, 2, 1, 0, 5};
+                                 //1, 2, 3, 4, 5, 6, 7, 8, 9,10,11,12,13,14,15,16
+static const signed char PB[]={-1, B, D, B, B, B, D, D, D, D, C, C, C, C, C, C, B};
+static const signed char PN[]={-1, 3, 4, 2, 1, 0, 7, 6, 5, 3, 5, 4, 3, 2, 1, 0, 5};
 
 static const signed char P[]=
                       //  1 2  3 4 5 6 7 8 9 10 11 12 13 14 15 16
