@@ -37,9 +37,8 @@ with my class/object, and to work with the register file as its write buffer.
 */
 void TWI_vect() {
   static unsigned char TWI_bufPtr;
-  
-  switch (TWSR)
-  {
+  uint8_t twsr=TWSR; //Only read the actual register once
+  switch (twsr) {
     case WireSlaveReg::TWI_STX_ADR_ACK:            // Own SLA+R has been received; ACK has been returned
 
     case WireSlaveReg::TWI_STX_DATA_ACK:           // Data byte in TWDR has been transmitted; ACK has been received
@@ -50,6 +49,7 @@ void TWI_vect() {
              (0<<TWWC);                                 //
       // Data is committed to send, tell the client and update the pointer
       SlaveReg.client_onRequest(SlaveReg.addr);
+//      Serial.println("0");
       break;
     case WireSlaveReg::TWI_STX_DATA_NACK:          // Data byte in TWDR has been transmitted; NACK has been received. 
                                      // I.e. this could be the end of the transmission.
@@ -58,6 +58,7 @@ void TWI_vect() {
              (1<<TWIE)|(1<<TWINT)|                      // Keep interrupt enabled and clear the flag
              (1<<TWEA)|(0<<TWSTA)|(0<<TWSTO)|           // Answer on next address match
              (0<<TWWC);                                 //
+//      Serial.print("1");
       break;     
     case WireSlaveReg::TWI_SRX_GEN_ACK:            // General call address has been received; ACK has been returned
       SlaveReg.TWI_statusReg.genAddressCall = true;
@@ -70,15 +71,18 @@ void TWI_vect() {
              (1<<TWIE)|(1<<TWINT)|                      // Enable TWI Interrupt and clear the flag to send byte
              (1<<TWEA)|(0<<TWSTA)|(0<<TWSTO)|           // Expect ACK on this transmission
              (0<<TWWC);  
+//      Serial.print("2");
       break;
     case WireSlaveReg::TWI_SRX_ADR_DATA_ACK:       // Previously addressed with own SLA+W; data has been received; ACK has been returned
     case WireSlaveReg::TWI_SRX_GEN_DATA_ACK:       // Previously addressed with general call; data has been received; ACK has been returned
       if(SlaveReg.regAddrIncoming) {
         SlaveReg.addr=TWDR;
         SlaveReg.regAddrIncoming=false;
+//        Serial.print("3");
       } else {
         SlaveReg.reg[SlaveReg.addr]=TWDR;
         SlaveReg.client_onReceive(SlaveReg.addr);
+//        Serial.println("b");
       }
       SlaveReg.TWI_statusReg.lastTransOK = true;                 // Set flag transmission successfully.       
                                                         // Reset the TWI Interrupt to wait for a new event.
@@ -93,21 +97,21 @@ void TWI_vect() {
              (1<<TWIE)|(1<<TWINT)|                      // Enable interrupt and clear the flag
              (1<<TWEA)|(0<<TWSTA)|(0<<TWSTO)|           // Wait for new address match
              (0<<TWWC);                                 //
-      
+//      Serial.print("4");
       break;           
-    case WireSlaveReg::TWI_SRX_ADR_DATA_NACK:      // Previously addressed with own SLA+W; data has been received; NOT ACK has been returned
-    case WireSlaveReg::TWI_SRX_GEN_DATA_NACK:      // Previously addressed with general call; data has been received; NOT ACK has been returned
-    case WireSlaveReg::TWI_STX_DATA_ACK_LAST_BYTE: // Last data byte in TWDR has been transmitted (TWEA = "0"); ACK has been received
-    case WireSlaveReg::TWI_BUS_ERROR:         // Bus error due to an illegal START or STOP condition
-      SlaveReg.TWI_state = TWSR;                 //Store TWI State as error message, operation also clears noErrors bit
-      TWCR =   (1<<TWSTO)|(1<<TWINT);   //Recover from TWI_BUS_ERROR, this will release the SDA and SCL pins thus enabling other devices to use the bus
-      break;
+    case WireSlaveReg::TWI_SRX_ADR_DATA_NACK:      // 0x88 - Previously addressed with own SLA+W; data has been received; NOT ACK has been returned
+    case WireSlaveReg::TWI_SRX_GEN_DATA_NACK:      // 0x98 - Previously addressed with general call; data has been received; NOT ACK has been returned
+    case WireSlaveReg::TWI_STX_DATA_ACK_LAST_BYTE: // 0xC8 - Last data byte in TWDR has been transmitted (TWEA = "0"); ACK has been received
+    case WireSlaveReg::TWI_BUS_ERROR:              // 0x00 - Bus error due to an illegal START or STOP condition
     default:     
-      SlaveReg.TWI_state = TWSR;                                 // Store TWI State as error message, operation also clears the Success bit.      
+      SlaveReg.TWI_state = twsr;                                 // Store TWI State as error message, operation also clears the Success bit.      
       TWCR = (1<<TWEN)|                                 // Enable TWI-interface and release TWI pins
              (1<<TWIE)|(1<<TWINT)|                      // Keep interrupt enabled and clear the flag
-             (1<<TWEA)|(0<<TWSTA)|(0<<TWSTO)|           // Acknowledge on any new requests.
+             (1<<TWEA)|(0<<TWSTA)|(1<<TWSTO)|           // Acknowledge on any new requests.
              (0<<TWWC);                                 //
+      Serial.println("DDD");
+//      Serial.print("TWSR: ");
+//      Serial.println(SlaveReg.TWI_state);
   }
 }
 
