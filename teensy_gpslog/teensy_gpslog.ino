@@ -1,9 +1,11 @@
+//#include <ccsds.h>
 #include <gprmc.h>
 #include <SD.h>
 #include <SPI.h>
 #include <mpu60x0.h>
 #include <ak8975.h>
 #include <SerLCD.h>
+#include <pit.h>
 
 // set up variables using the SD utility library functions:
 Sd2Card card;
@@ -11,6 +13,7 @@ SdVolume volume;
 SdFile root;
 MPU6050 mpu(Wire);
 AK8975 ak(Wire);
+PIT pit0(0);
 SerLCD lcd;
 // change this to match your SD shield or module;
 // Arduino Ethernet shield: pin 4
@@ -52,6 +55,7 @@ int filenum=1;
 
 void setup() {
  // Open serial communications and wait for port to open:
+  pit0.begin(60.0);
   Serial.begin(9600);
   Serial1.setTX(26);
   Serial1.setRX(27);
@@ -170,7 +174,7 @@ void readMPU() {
     mpuStatus=ax!=0 && ax!=-1;
     if(mpuStatus) {
       if(ouf) {
-        printPKWNF(ouf,newMillis,ax,ay,az,gx,gy,gz,t);
+        printPKWNF(ouf,pit0.TC(),ax,ay,az,gx,gy,gz,t);
       }
       acc++;
     } else {
