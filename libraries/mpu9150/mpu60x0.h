@@ -21,7 +21,16 @@ public:
   MPU60x0() {};
   unsigned char whoami() {return read(0x75);};
   virtual bool read(int16_t& ax, int16_t& ay, int16_t& az, int16_t& gx, int16_t& gy, int16_t& gz, int16_t& t);
-  bool begin(uint8_t gyro_scale=0, uint8_t acc_scale=0, uint8_t bandwidth=0, uint8_t sample_rate=0); ///<Do anything necessary to init the part. Bus is available at this point.
+  bool begin(uint8_t gyro_scale=0, uint8_t acc_scale=0, uint8_t bandwidth=0, uint8_t smplrt_div=0); ///<Do anything necessary to init the part. Bus is available at this point.
+  bool get_config(uint8_t& gyro_scale_raw, 
+                  uint8_t& acc_scale_raw,  
+                  uint8_t& bandwidth_raw, 
+                  uint8_t& smplrt_div,
+                  float&   gyro_scale /**< Gyro scale in deg/s */,
+                  float&   gyro_bw    /**< Gyro bandwidth in Hz */,
+                  float&   acc_scale  /**< Acc scale in g */,
+                  float&   acc_bw     /**< Acc bandwidth in Hz */,
+                  float&   sample_rate/**< Sample rate in Hz */);
 };
 
 /** I2C version of MPU60x0

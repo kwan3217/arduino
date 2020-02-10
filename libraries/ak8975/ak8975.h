@@ -7,9 +7,8 @@
 
 class AK8975 {
   private:
-    int partAddress;  // I2C address of AK8975
-
     TwoWire& port; 
+    int partAddress;  // I2C address of AK8975
     int8_t read(uint8_t address);
     int16_t read16(uint8_t address);
     void startMeasurement();

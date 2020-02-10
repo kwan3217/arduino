@@ -224,7 +224,7 @@ int day_of_week(int year, int month, int day) {
 //Return - true if in DST, false if not
 bool isDST(int year, int month, int day, int hour) {
   bool result=false;
-  const bool verbose=true;
+  const bool verbose=false;
   if(verbose){
     Serial.print(year);Serial.print(',');
     Serial.print(month);Serial.print(',');
