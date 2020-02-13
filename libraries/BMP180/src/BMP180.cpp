@@ -2,7 +2,7 @@
 
 #undef BMP180_DEBUG 
 
-BMP180::BMP180(TwoWire &Lport):port(Lport),OSS(3) {}
+BMP180::BMP180(TwoWire &Lport):port(Lport),phase(0),OSS(3) {}
 
 // Stores all of the bmp085's calibration values into global variables
 // Calibration values are required to calculate temp and pressure
@@ -28,20 +28,19 @@ bool BMP180::readCalibration() {
   mb = read_int16(0xBA);
   mc = read_int16(0xBC);
   md = read_int16(0xBE);
-  if (ac1==0 || ac1==0xFFF) return false;
-  if (ac2==0 || ac2==0xFFF || ac2==ac1) return false;
+  if (ac1==0 || ac1==0xFFFF) return false;
+  if (ac2==0 || ac2==0xFFFF || ac2==ac1) return false;
   return true;
 }
 
 // Calculate temperature given ut.
 // Value returned will be in units of 0.1 deg C
-int16_t BMP180::getTemperature(uint16_t ut) {
-  int32_t x1, x2;
-  int16_t result;
+int32_t BMP180::getTemperature(int32_t ut) {
+  int32_t result;
   
-  x1 = (((int32_t)ut - (int32_t)ac6)*(int32_t)ac5) >> 15;
-  x2 = ((int32_t)mc << 11)/(x1 + md);
-  b5 = x1 + x2;
+  x1_0 = (((int32_t)ut - (int32_t)ac6)*(int32_t)ac5) >> 15;
+  x2_0 = ((int32_t)mc << 11)/(x1_0 + md);
+  b5 = x1_0 + x2_0;
   result=((b5 + 8)>>4);
 
   return result;  
@@ -51,35 +50,33 @@ int16_t BMP180::getTemperature(uint16_t ut) {
 // calibration values must be known
 // b5 is also required so getTemperature(...) must be called first.
 // Value returned will be pressure in units of Pa.
-int32_t BMP180::getPressure(uint32_t up) {
-  int32_t x1, x2, x3, b3, b6, p;
-  uint32_t b4, b7;
+int32_t BMP180::getPressure(int32_t up) {
   
   b6 = b5 - 4000;
   // Calculate B3
-  x1 = (b2 * ((b6 * b6)>>12))>>11;
-  x2 = (ac2 * b6)>>11;
-  x3 = x1 + x2;
-  b3 = (((((int32_t)ac1)*4 + x3)<<OSS) + 2)>>2;
+  x1_1 = (b2 * ((b6 * b6)>>12))>>11;
+  x2_1 = (ac2 * b6)>>11;
+  x3_1 = x1_1 + x2_1;
+  b3 = (((((int32_t)ac1)*4 + x3_1)<<OSS) + 2)>>2;
   
   // Calculate B4
-  x1 = (ac3 * b6)>>13;
-  x2 = (b1 * ((b6 * b6)>>12))>>16;
-  x3 = ((x1 + x2) + 2)>>2;
-  b4 = (ac4 * (uint32_t)(x3 + 32768))>>15;
+  x1_2 = (ac3 * b6)>>13;
+  x2_2 = (b1 * ((b6 * b6)>>12))>>16;
+  x3_2 = ((x1_2 + x2_2) + 2)>>2;
+  b4 = (ac4 * (uint32_t)(x3_2 + 32768))>>15;
   
   b7 = ((uint32_t)(up - b3) * (50000>>OSS));
   if (b7 < 0x80000000)
-    p = (b7<<1)/b4;
+    p_0 = (b7<<1)/b4;
   else
-    p = (b7/b4)<<1;
+    p_0 = (b7/b4)<<1;
     
-  x1= (p>>8) * (p>>8);
-  x1 = (x1 * 3038)>>16;
-  x2 = (-7357 * p)>>16;
-  p += (x1 + x2 + 3791)>>4;
+  x1_3a= (p_0>>8) * (p_0>>8);
+  x1_3b = (x1_3a * 3038)>>16;
+  x2_3 = (-7357 * p_0)>>16;
+  p_1=p_0+((x1_3b + x2_3 + 3791)>>4);
   
-  return p;
+  return p_1;
 }
 
 // Read 1 byte from the BMP085 at 'address'
@@ -147,17 +144,20 @@ void BMP180::finishPresCore() {
   UP = (((uint32_t) msb << 16) | ((uint32_t) lsb << 8) | (uint32_t) xlsb) >> (8-OSS);
 }
 
-bool BMP180::noBlockTakeMeasurement() {
+bool BMP180::noBlockTakeMeasurement(int& phaseChange) {
+  phaseChange=-1;
   switch(phase) {
     case 0:
       t=0;
       startMeasurementCore();
       phase=1;
+      phaseChange=0;
       return false;
     case 1:
       if(t>5) {
         finishTempCore();
         phase=2;
+        phaseChange=1;
         return false;
       } else {
         return false;
@@ -166,11 +166,13 @@ bool BMP180::noBlockTakeMeasurement() {
       if(t>(2+(3<<OSS))) {
         finishPresCore();
         phase=0;
+        phaseChange=2;
         return true;
       } else {
         return false;
       }
   }
+  return false;
 }
 
 void BMP180::takeMeasurement() {
