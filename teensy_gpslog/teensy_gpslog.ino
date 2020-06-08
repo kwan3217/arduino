@@ -2,34 +2,37 @@
 #include <pit.h>
 #include <SD.h>
 #include <SPI.h>
-#include <ccsds.h>
+#include <ublox.h>
 #include <gprmc.h>
 #include <SerLCD.h>
 #include <BMP180.h>
 #include <ak8975.h>
+#include <InternalTemperature.h>
+#include <TeensyView.h>
 #define USE_PIT
-//#define USE_USB
+#define USE_USB
 #define USE_SD
 #define USE_GPS
 #ifdef USE_PIT
 #define USE_PPS
 #endif
-//#define USE_BMP
-//#define USE_MPU
+#define USE_BMP
+#define USE_MPU
 #ifdef USE_MPU
-//#define USE_AK //Only can get to the AK in an MPU9150 through the MPU
+#define USE_AK //Only can get to the AK in an MPU9150 through the MPU
 #endif
-#define USE_LCD
+//#define USE_LCD
+#define USE_TV
 
 #ifdef USE_PIT
 PIT pit0(0);
 #endif
 #ifdef USE_SD
-Sd2Card card;
-SdVolume volume;
-SdFile root;
+//Sd2Card card;
+//SdVolume volume;
+//SdFile root;
 File ouf;
-CCSDS pkt;
+uBlox pkt;
 #endif
 #ifdef USE_GPS
 bool gpsStatus=false;
@@ -40,13 +43,26 @@ GPRMC gprmc;
 SerLCD lcd;
 HardwareSerial& SerialLCD=Serial4;
 #endif
+#ifdef USE_TV
+#define PIN_SCK  13
+#define PIN_MOSI 11
+#define PIN_RESET 2
+#define PIN_DC  21
+#define PIN_CS  20
+TeensyView oled(PIN_RESET, PIN_DC, PIN_CS, PIN_SCK, PIN_MOSI);
+#endif
+
 #ifdef USE_BMP
 #endif
 #ifdef USE_MPU
 #include <mpu60x0.h>
 MPU6050 mpu(Wire);
+int acc=0;
+bool mpuStatus=false;
 #ifdef USE_AK
 AK8975 ak(Wire);
+int mag=0;
+bool magStatus=false;
 #endif
 #endif
 #ifdef USE_BMP
@@ -54,9 +70,9 @@ BMP180 bmp(Wire);
 #endif
 //SerialUSB is #defined in teensy3/pins_arduino.h . The following #undefs
 //it so we can redefine it as a Stream reference.
-#undef SerialUSB
+//#undef SerialUSB
 #ifdef USE_USB
-Stream& SerialUSB=Serial;
+//Stream& SerialUSB=Serial;
 #endif
 
 #ifdef USE_SD
@@ -81,7 +97,7 @@ void num_filename(char* fn, int num) {
   }
 }
 
-char oufn[]="LOG00000.TXT";
+char oufn[]="LOG00000.UBX";
 #endif
 
 #ifdef USE_SD
@@ -111,24 +127,65 @@ void pps() {
 }
 #endif
 
-#ifdef USE_MPU
-volatile uint32_t tc_mpu;
-volatile bool intr_mpu=false;
-
-void mpuInt() {
-  tc_mpu=pit0.TC();
-  intr_mpu=true;
-}
-#endif
-
 const int LED=13;
 #ifdef USE_PPS
 const int PPS=5;
 #endif
 #ifdef USE_MPU
-const int MPUINT=17;
+const int MPUINT=37;
 #endif
 
+/*
+void printSDStuff() {
+  Serial.print("Card type:         ");
+  switch (card.type()) {
+    case SD_CARD_TYPE_SD1:
+      Serial.println("SD1");
+      break;
+    case SD_CARD_TYPE_SD2:
+      Serial.println("SD2");
+      break;
+    case SD_CARD_TYPE_SDHC:
+      Serial.println("SDHC");
+      break;
+    default:
+      Serial.print("Unknown");
+      Serial.println(card.type());
+  }
+
+  // Now we will try to open the 'volume'/'partition' - it should be FAT16 or FAT32
+  if (!volume.init(card)) {
+    Serial.println("Could not find FAT16/FAT32 partition.\nMake sure you've formatted the card");
+    while (1);
+  }
+
+  Serial.print("Clusters:          ");
+  Serial.println(volume.clusterCount());
+  Serial.print("Blocks x Cluster:  ");
+  Serial.println(volume.blocksPerCluster());
+
+  Serial.print("Total Blocks:      ");
+  Serial.println(volume.blocksPerCluster() * volume.clusterCount());
+  Serial.println();
+
+  // print the type and size of the first FAT-type volume
+  uint32_t volumesize;
+  Serial.print("Volume type is:    FAT");
+  Serial.println(volume.fatType(), DEC);
+
+  volumesize = volume.blocksPerCluster();    // clusters are collections of blocks
+  volumesize *= volume.clusterCount();       // we'll have a lot of clusters
+  volumesize /= 2;                           // SD card blocks are always 512 bytes (2 blocks are 1KB)
+  Serial.print("Volume size (Kb):  ");
+  Serial.println(volumesize);
+  Serial.print("Volume size (Mb):  ");
+  volumesize /= 1024;
+  Serial.println(volumesize);
+  Serial.print("Volume size (Gb):  ");
+  Serial.println((float)volumesize / 1024.0);
+
+}
+*/
 void setup() {
   #ifdef USE_PIT
   pit0.begin(60.0);
@@ -196,6 +253,8 @@ void setup() {
   pinMode(35,INPUT);
   pinMode(34,INPUT);
   pinMode(33,INPUT);
+
+  InternalTemperature.begin();
   //MicroSD end
  // Open serial communications and wait for port to open:
   #ifdef USE_USB
@@ -206,12 +265,13 @@ void setup() {
   #ifdef USE_PPS
   attachInterrupt(digitalPinToInterrupt(PPS),pps,RISING);
   #endif
-//  attachInterrupt(digitalPinToInterrupt(MPUINT),mpuInt,RISING);
+  #ifndef USE_TV
   digitalWrite(LED,LOW);
-
+  #endif
+  
   //SerLCD init
   #ifdef USE_LCD
-  SerialLCD.begin(9600);
+  SerialLCD.begin(38400);
   lcd.begin(SerialLCD);  
   lcd.command(CLEAR_COMMAND);
   lcd.setCursor(0,0);
@@ -219,9 +279,22 @@ void setup() {
   lcd.setCursor(0,1);
   lcd.print(__DATE__);
   #endif
+
+  #ifdef USE_TV
+  oled.begin();
+  oled.clear(PAGE);
+  oled.setFontType(0);
+  oled.setCursor(0,0);
+  oled.print("Teensy Loginator");
+  oled.setCursor(0, 8);
+  oled.print(__DATE__);
+  oled.setCursor(0,16);
+  oled.print(__TIME__ "MT");
+  oled.display();
+  #endif
   
   //Activate I2C
-  Wire.begin();
+  Wire.begin(400000);
   #ifdef USE_MPU
   //Activate MPU9150 inertial part. The MPU9150 is effectively
   //an MPU6050 inertial (3axis acc+3axis gyro) sensor.
@@ -231,8 +304,9 @@ void setup() {
   mpu.begin(0, //gyro scale
             0, //acc scale
             3, //bandwidth setting
-            9  //samplerate divisor
+            9  //samplerate divisor, intended to give 100Hz
             );
+  attachInterrupt(digitalPinToInterrupt(MPUINT),mpuInt,RISING);
   #ifdef USE_USB
   SerialUSB.print("Got ID 0x");
   SerialUSB.print(mpu.whoami(),HEX);
@@ -274,7 +348,8 @@ void setup() {
   SdFile::dateTimeCallback(dateTime);
   #endif
   SD.begin(chipSelect);
-  
+
+  //printSDStuff();
   //Decide on the filename, but don't open the file yet
   num_filename(oufn+3,filenum);
   while (SD.exists(oufn)) {
@@ -294,14 +369,97 @@ void setup() {
   }
   #endif
 
-  if(ouf) {
+  //if(ouf) {
     pkt.begin(ouf);
-    pkt.script();
     pkt.metaDoc();
+  if(ouf) {
     pkt.metaDoc("Packets in this stream either may or may not have a secondary header, as indicated by the secondary header bit (byte 0, bit 4) in the primary header.");
     pkt.metaDoc("If the secondary header is present, it is a 32-bit unsigned timestamp (TC, for timer count).");
     pkt.metaDoc("This timestamp increments at 60MHz, and rolls over in 60 seconds, so from 0 to 3,599,999,999 (almost 3.6 billion) ticks.");
     pkt.metaDoc("There is no direct indication of rollover, but all packets are emitted at 1Hz or faster, so rollover can be detected by the timestamp decreasing.");
+
+    pkt.start(11,"sys_config");
+    pkt.fillu32(F_CPU,"f_cpu");
+    pkt.fillu32(pit0.Hz(),"pit0_hz");
+    pkt.fill(
+#ifdef USE_PIT
+      1,
+#else
+      (char)0,
+#endif
+      "use_pit");
+    pkt.fill(
+#ifdef USE_USB
+      1,
+#else
+      (char)0,
+#endif
+      "use_usb");
+    pkt.fill(
+#ifdef USE_SD
+      1,
+#else
+      (char)0,
+#endif
+      "use_sd");
+    pkt.fill(
+#ifdef USE_GPS
+      1,
+#else
+      (char)0,
+#endif
+      "use_gps");
+    pkt.fill(
+#ifdef USE_PIT
+      1,
+#else
+      (char)0,
+#endif
+      "use_pit");
+    pkt.fill(
+#ifdef USE_PPS
+      1,
+#else
+      (char)0,
+#endif
+      "use_pps");
+    pkt.fill(
+#ifdef USE_BMP
+      1,
+#else
+      (char)0,
+#endif
+      "use_bmp");
+    pkt.fill(
+#ifdef USE_MPU
+      1,
+#else
+      (char)0,
+#endif
+      "use_mpu");
+    pkt.fill(
+#ifdef USE_AK
+      1,
+#else
+      (char)0,
+#endif
+      "use_ak");
+    pkt.fill(
+#ifdef USE_LCD
+      1,
+#else
+      (char)0,
+#endif
+      "use_lcd");
+    pkt.fill(
+#ifdef USE_TV
+      1,
+#else
+      (char)0,
+#endif
+      "use_tv");
+    pkt.fill("Teensy Rocketometer " __DATE__ " " __TIME__ " MT","fw_ver");
+    pkt.finish(11);
 
     #ifdef USE_MPU
     uint8_t        gyro_scale_raw, acc_scale_raw, bandwidth_raw, smplrt_div;
@@ -315,7 +473,7 @@ void setup() {
     pkt.fill(smplrt_div    ,"smplrt_div");
     pkt.fillfp(gyro_scale   ,"gyro_scale");
     pkt.fillfp(gyro_bw      ,"gyro_bw");
-    pkt.fillfp(acc_scale    ,"acc_scale_raw");
+    pkt.fillfp(acc_scale    ,"acc_scale");
     pkt.fillfp(acc_bw       ,"acc_bw");
     pkt.fillfp(sample_rate  ,"sample_rate");
     pkt.finish(7);
@@ -349,7 +507,10 @@ void setup() {
   #ifdef USE_GPS
   SerialGPS.begin(9600);
   #endif
+
+  #ifndef USE_TV
   digitalWrite(LED,HIGH);
+  #endif
 }
 
 char buf[512];
@@ -383,7 +544,7 @@ void readGPS() {
       buf[bufptr]=0;
       bufptr=0;
       #ifdef USE_USB
-      SerialUSB.print(buf);
+      //SerialUSB.print(buf);
       #endif
       #ifdef USE_SD
       if(ouf) {
@@ -391,6 +552,9 @@ void readGPS() {
         pkt.start(5,"NMEA",pit0.TC());
         #else
         pkt.start(5,"NMEA");
+        #endif
+        #ifdef USE_PPS
+        pkt.fillu32(tc_pps,"tc_pps");
         #endif
         pkt.fill(buf,"NMEA");
         pkt.finish(5);
@@ -400,7 +564,9 @@ void readGPS() {
     }
     gprmc.process(incomingByte);
   }
+  #ifndef USE_TV
   digitalWrite(LED,statusLED());
+  #endif
 }
 #endif
 
@@ -409,6 +575,10 @@ void readPPS() {
   #ifdef USE_SD
   if(ouf && intr_pps) {
     pkt.start(6,"PPS",tc_pps);
+    float t=InternalTemperature.readTemperatureC();
+    pkt.fillfp(t,"tempC");
+    pkt.filli32(InternalTemperature.analogValue,"tempDN");
+    pkt.filli32(InternalTemperature.analogVref, "vrefDN");
     pkt.finish(6);
     intr_pps=false;
   }
@@ -417,21 +587,24 @@ void readPPS() {
 #endif
 
 #ifdef USE_MPU
-int acc=0;
-bool mpuStatus=false;
+volatile uint32_t tc_mpu;
+volatile uint8_t intr_mpu=0;
+
+void mpuInt() {
+  tc_mpu=pit0.TC();
+  intr_mpu+=1;
+}
 void readMPU() {
-  static unsigned long oldMillis=0;
-  const int period=10;
-  unsigned long newMillis=millis();
-  if(newMillis>=oldMillis+period) {
-    oldMillis+=period;
+  if(intr_mpu>0) {
+    uint8_t istat;
     int16_t ax,ay,az,gx,gy,gz,t;
-    uint32_t tc=pit0.TC();
-    mpu.read(ax,ay,az,gx,gy,gz,t);
+    mpu.read(istat,ax,ay,az,gx,gy,gz,t);
     mpuStatus=ax!=0 && ax!=-1;
     if(mpuStatus) {
       if(ouf) {
-        pkt.start(3,"MPUinertial",tc);
+        pkt.start(3,"MPUinertial",tc_mpu);
+        pkt.fill(intr_mpu,"intr_mpu");
+        pkt.fill(istat,"istat");
         pkt.filli16(ax,"ax");
         pkt.filli16(ay,"ay");
         pkt.filli16(az,"az");
@@ -446,7 +619,10 @@ void readMPU() {
       SerialUSB.print("Bad MPU: ax=");
       SerialUSB.println(ax,HEX);
     }
-    digitalWrite(LED,(mpuStatus&&gpsStatus&&magStatus&&ouf)?HIGH:LOW);
+    #ifndef USE_TV
+    digitalWrite(LED,statusLED());
+    #endif
+    intr_mpu=0;
   }
 }
 #endif
@@ -457,16 +633,18 @@ int32_t UP;
 int32_t T;
 int32_t P;
 void readBMP() {
-  static elapsedMillis phase=0;
+  static elapsedMillis t=0;
   const uint16_t period=100;
+  const bool verbose=true;
+  int phase=t;
   if(phase>=period && bmp.noBlockTakeMeasurement()) {
     uint32_t tc=pit0.TC();
-    phase=0;
+    t-=period;
     UT=bmp.getTemperatureRaw();
     UP=bmp.getPressureRaw();
     T=bmp.getTemperature();
     P=bmp.getPressure();
-    #ifdef SD
+    #ifdef USE_SD
     if(ouf) {
       if(verbose) {      
         pkt.start(10,"BMP_verbose",tc);
@@ -474,6 +652,7 @@ void readBMP() {
         uint16_t ac4,ac5,ac6;
          int16_t b1,b2,mb,mc,md;
         bmp.getCalibration(ac1,ac2,ac3,ac4,ac5,ac6,b1,b2,mb,mc,md);
+        pkt.filli32(phase,"phase");
         pkt.filli16(ac1,"ac1");
         pkt.filli16(ac2,"ac2");
         pkt.filli16(ac3,"ac3");
@@ -529,22 +708,22 @@ void readBMP() {
       pkt.finish(9);
     }
     #endif
-    digitalWrite(LED,(mpuStatus&&gpsStatus&&magStatus&&ouf)?HIGH:LOW);
+    #ifndef USE_TV
+    digitalWrite(LED,statusLED());
+    #endif
   }
 }
 #endif
 
 #ifdef USE_AK
-int mag=0;
-bool magStatus=false;
 void readAK() {
-  static unsigned long oldMillis=0;
+  static elapsedMillis t=0;
   const int period=100;
-  unsigned long newMillis=millis();
-  if(newMillis>=oldMillis+period) {
+  int phase=t;
+  if(phase>=period) {
     if(ak.noblockMeasurement()) {
       uint32_t tc=pit0.TC();
-      oldMillis+=period; //Only do this after we have a measurement, so that if the measurement isn't ready yet, we check immediately next time around
+      t-=period; //Only do this after we have a measurement, so that if the measurement isn't ready yet, we check immediately next time around
       int16_t bx,by,bz;
       uint8_t st1,st2;
       ak.read(bx,by,bz,st1,st2);
@@ -552,6 +731,7 @@ void readAK() {
       if(magStatus) {
         if(ouf) {
           pkt.start(4,"MPUmagnetic",tc);
+          pkt.filli32(phase,"phase");
           pkt.filli16(bx,"bx");
           pkt.filli16(by,"by");
           pkt.filli16(bz,"bz");
@@ -561,24 +741,58 @@ void readAK() {
         }
         mag++;
       } else {
-        SerialUSB.print("Bad mag");
+        SerialUSB.print("Bad Mag: bx=");
+        SerialUSB.println(bx,HEX);
       }
     }
+    #ifndef USE_TV
     digitalWrite(LED,(mpuStatus&&gpsStatus&&magStatus&&ouf)?HIGH:LOW);
+    #endif
   }
 }
 #endif
 
-void print(Print& ouf, int val, int digits, char pad='\0') {
+void print(int val, int digits, char pad='\0') {
+  #ifdef USE_LCD
+  Print& ouf=lcd;
+  #endif
+  #ifdef USE_TV
+  Print& ouf=oled;
+  #endif
   int powcheck=1;
   for(int i=0;i<digits-1;i++)powcheck*=10;
   int mod=powcheck*10;
   if(pad==0) pad=(val>=mod)?'0':' ';
   for(int i=0;i<digits-1;i++) {
     if(val%mod<powcheck) ouf.print(pad);
+    doFast();
     powcheck/=10;
   }
   ouf.print(val%mod,DEC);
+  doFast();
+}
+
+void print(const char* str) {
+  #ifdef USE_LCD
+  Print& ouf=lcd;
+  #endif
+  #ifdef USE_TV
+  Print& ouf=oled;
+  #endif
+  while(*str) {
+    ouf.print(*str);
+    doFast();
+    str++;
+  }
+}
+
+void setCursor(int line) {
+  #ifdef USE_LCD
+  lcd.setCursor(0,line);
+  #endif
+  #ifdef USE_TV
+  oled.setCursor(0,line*8);
+  #endif
 }
 
 const int maxPages=4
@@ -592,103 +806,106 @@ void doSlow() {
   static int page=0;
   static int phase=0;
   static bool first=true;
-  #ifdef USE_SD
-  int dispfilenum=(ouf)?filenum:0;
-  #endif
   bool doit=first;
   if(t>=1000) {
     doit=true;
     t=0;
   }
-  float f;
   if(doit) {
-    #ifdef USE_LCD
+    #if defined (USE_LCD) || defined (USE_TV)
+    #ifdef USE_TV
+    oled.clear(PAGE);
+    #endif
+    #ifdef USE_SD
+    int dispfilenum=(ouf)?filenum:0;
+    #endif
+    float f;
     switch(page) {
       case 0:
-        lcd.setCursor(0,0);
+        setCursor(0);
         #ifdef USE_SD
-        lcd.print("ouf:");
-        print(lcd,dispfilenum,3);
+        print("ouf:");
+        print(dispfilenum,3);
         #endif
         #ifdef USE_GPS
-        lcd.print(" GPS:");
-        print(lcd,gprmc.count,4);
+        print(" GPS:");
+        print(gprmc.count,4);
         #endif
-        lcd.setCursor(0,1);
+        setCursor(1);
         #ifdef USE_AK
-        lcd.print("mag:");
-        print(lcd,mag,3);
+        print("mag:");
+        print(mag,3);
         #endif
         #ifdef USE_MPU
-        lcd.print(" acc:");
-        print(lcd,acc,4);
+        print(" acc:");
+        print(acc,4);
         #endif
         break;
       case 1:
         #ifdef USE_SD
-        lcd.setCursor(0,0);
-        lcd.print("ouf:  ");
-        print(lcd,dispfilenum,10);
-        lcd.print("x");
-        lcd.setCursor(0,1);
-        lcd.print("tell: ");
-        print(lcd,ouf?ouf.position():0,10);
-        lcd.print("x");
+        setCursor(0);
+        print("ouf:  ");
+        print(dispfilenum,10);
+        setCursor(1);
+        print("tell: ");
+        print(ouf?ouf.position():0,10);
         #endif
         break;
       case 2:
         #ifdef USE_GPS
-        lcd.setCursor(0,0);
-        lcd.print("date: ");
-        print(lcd,gprmc.y,4);
-        lcd.print("-");
-        print(lcd,gprmc.m,2,'0');
-        lcd.print("-");
-        print(lcd,gprmc.d,2,'0');
-        lcd.setCursor(0,1);
-        lcd.print("time:   ");
-        print(lcd,gprmc.h,2,'0');
-        lcd.print(":");
-        print(lcd,gprmc.n,2,'0');
-        lcd.print(":");
-        print(lcd,gprmc.s,2,'0');
+        setCursor(0);
+        print("date: ");
+        print(gprmc.y,4);
+        print("-");
+        print(gprmc.m,2,'0');
+        print("-");
+        print(gprmc.d,2,'0');
+        setCursor(1);
+        print("time:   ");
+        print(gprmc.h,2,'0');
+        print(":");
+        print(gprmc.n,2,'0');
+        print(":");
+        print(gprmc.s,2,'0');
         #endif
         break;
       case 3:
         #ifdef USE_GPS
-        lcd.setCursor(0,0);
-        lcd.print("lat:");
-        lcd.print(gprmc.valid?"A":"V");
-        lcd.print(gprmc.lat<0?"S":"N");
+        setCursor(0);
+        print("lat:");
+        print(gprmc.lat<0?"S":"N");
+        print(gprmc.valid?"^":"v");
         f=gprmc.lat>0?gprmc.lat:-gprmc.lat;
-        print(lcd,int(f),3);
-        lcd.print('.');
-        print(lcd,int((f-int(f))*1000000+0.5),6,'0');
-        lcd.setCursor(0,1);
-        lcd.print("lon: ");
-        lcd.print(gprmc.lon<0?"W":"E");
+        print(int(f),2);
+        print(".");
+        print(int((f-int(f))*1000000+0.5),7,'0');
+        setCursor(1);
+        print("lon:");
+        print(gprmc.lon<0?"W":"E");
         f=gprmc.lon>0?gprmc.lon:-gprmc.lon;
-        print(lcd,int(f),3);
-        lcd.print('.');
-        print(lcd,int((f-int(f))*1000000+0.5),6,'0');
+        print(int(f),3);
+        print(".");
+        print(int((f-int(f))*1000000+0.5),7,'0');
         #endif
         break;
       case 4:
         #ifdef USE_BMP
-        lcd.setCursor(0,0);
-        lcd.print("UT:");
-        print(lcd,UT,5);
-        lcd.print(" T:");
-        print(lcd,T,5);
-        lcd.setCursor(0,1);
-        lcd.print("UP:");
-        print(lcd,UP,5);
-        lcd.print(" P:");
-        print(lcd,P,5);
+        setCursor(0);
+        print("UP:");
+        print(UP,7);
+        print(" T:");
+        print(T,3);
+        setCursor(1);
+        print("P:");
+        print(P,5);
+        print(" UT:");
+        print(UT,5);
         #endif
         break;
-      
     }
+    #ifdef USE_TV
+    oled.display();
+    #endif
     #endif
     #ifdef USE_SD
     if(ouf)ouf.flush();
@@ -705,6 +922,15 @@ void doSlow() {
   }
 }
 
+void doFast() {
+  #ifdef USE_MPU
+  readMPU();
+  #ifdef USE_AK  
+  readAK();
+  #endif
+  #endif
+}
+
 void loop(void) {
   doSlow();
   #ifdef USE_GPS
@@ -713,12 +939,7 @@ void loop(void) {
   #ifdef USE_PPS
   readPPS();
   #endif
-  #ifdef USE_MPU
-  readMPU();
-  #ifdef USE_AK  
-  readAK();
-  #endif
-  #endif
+  doFast();
   #ifdef USE_BMP
   readBMP();
   #endif
