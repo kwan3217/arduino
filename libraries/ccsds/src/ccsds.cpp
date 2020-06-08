@@ -147,14 +147,14 @@ bool CCSDS::fillfp(float f) {
   //The in-memory form is little-endian, so we
   //do a reinterpret_cast from float to uint32_t
   //and write that int in big-endian.
-  uint32_t u=reinterpret_cast<uint32_t&>(f);
-  return fillu32(u);
+  return fillu32(reinterpret_cast<uint32_t&>(f));
 }
 
 bool CCSDS::metaDoc() {
   #ifdef DEBUG
   Serial.println("CCSDS::metaDoc()");
   #endif
+  if(!script()) return false;
   if(!metaDoc("This file contains CCSDS packets as described in CCSDS 133.0-B-1 with updates."))return false;
   if(!metaDoc("https://public.ccsds.org/Pubs/133x0b1c2.pdf"))return false;
   if(!metaDoc("There are no padding bytes or sync markers between packets."))return false;
