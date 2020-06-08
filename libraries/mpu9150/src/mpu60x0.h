@@ -20,7 +20,7 @@ private:
 public:
   MPU60x0() {};
   unsigned char whoami() {return read(0x75);};
-  virtual bool read(int16_t& ax, int16_t& ay, int16_t& az, int16_t& gx, int16_t& gy, int16_t& gz, int16_t& t);
+  virtual bool read(uint8_t& istat, int16_t& ax, int16_t& ay, int16_t& az, int16_t& gx, int16_t& gy, int16_t& gz, int16_t& t);
   bool begin(uint8_t gyro_scale=0, uint8_t acc_scale=0, uint8_t bandwidth=0, uint8_t smplrt_div=0); ///<Do anything necessary to init the part. Bus is available at this point.
   bool get_config(uint8_t& gyro_scale_raw, 
                   uint8_t& acc_scale_raw,  
@@ -48,7 +48,7 @@ public:
     @param Lport I2C port to use with this part
     @param LA0 least significant bit of part address */
   MPU6050(TwoWire& Lport, int LA0=0):port(Lport),ADDRESS(addr_msb | (LA0& 0x01)) {};
-  virtual bool read(int16_t& ax, int16_t& ay, int16_t& az, int16_t& gx, int16_t& gy, int16_t& gz, int16_t& t);
+  virtual bool read(uint8_t& istat, int16_t& ax, int16_t& ay, int16_t& az, int16_t& gx, int16_t& gy, int16_t& gz, int16_t& t);
 //  bool fillConfig(Packet& ccsds);
 };
 

@@ -55,6 +55,12 @@ bool MPU60x0::begin(uint8_t gyro_scale, uint8_t acc_scale, uint8_t bandwidth, ui
                                  //                    bus so that the host can see the auxillary sensor(s) directly.
 //  Serial.print("Int1 config: 0x");Serial.println(int1_config,HEX,2);
   write(0x37,int1_config);
+  //Set up I2C passthrough, so that the magnetic sensor on a 9150 can be accessed. Also set int levels
+  uint8_t int_enable =(0 << 4) | //0 - FIFO_OFLOW_EN - FIFO buffer overflow generates an interrupt
+                      (0 << 3) | //0 - I2C_MST_INT_EN - Any I2C master interrupt sources generate an interupt
+                      (1 << 0) ; //1 - DATA_RDY_EN - enables Data Ready Interrupt
+//  Serial.print("Int1 config: 0x");Serial.println(int1_config,HEX,2);
+  write(0x38,int_enable);
 //  Serial.print("User ctrl: 0x");Serial.println(read(0x6B),HEX,2);
   //In order for passthrough to work, the 9150 I2C bus master must be disabled, but this is default, so we don't do anything with it
   return true;
@@ -131,7 +137,8 @@ void MPU6050::write(uint8_t address, uint8_t data) {
 @param gz Gyroscope z readout
 @param t  Thermometer readout
 */
-bool MPU60x0::read(int16_t& ax, int16_t& ay, int16_t& az, int16_t& gx, int16_t& gy, int16_t& gz, int16_t& t) {
+bool MPU60x0::read(uint8_t& istat, int16_t& ax, int16_t& ay, int16_t& az, int16_t& gx, int16_t& gy, int16_t& gz, int16_t& t) {
+  istat=read(0x3A);
   ax=read16(0x3B);
   ay=read16(0x3D);
   az=read16(0x3F);
@@ -151,13 +158,14 @@ bool MPU60x0::read(int16_t& ax, int16_t& ay, int16_t& az, int16_t& gx, int16_t& 
 @param gz Gyroscope z readout
 @param t  Thermometer readout
 */
-bool MPU6050::read(int16_t& ax, int16_t& ay, int16_t& az, int16_t& gx, int16_t& gy, int16_t& gz, int16_t& t) {
+bool MPU6050::read(uint8_t& istat, int16_t& ax, int16_t& ay, int16_t& az, int16_t& gx, int16_t& gy, int16_t& gz, int16_t& t) {
   int msb, lsb;
   port.beginTransmission(ADDRESS);
-  port.write(0x3B);
+  port.write(0x3A);
   port.endTransmission();
 
-  port.requestFrom(ADDRESS, 14);
+  port.requestFrom(ADDRESS, 15);
+  istat=port.read();
   msb = port.read();
   lsb = port.read();
   ax= msb<<8 | lsb;
