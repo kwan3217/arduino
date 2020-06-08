@@ -116,8 +116,10 @@ void BMP180::startMeasurementCore() {
 }
 
 void BMP180::finishTempCore() {
-  // Read two bytes from registers 0xF6 and 0xF7
-  UT = read_int16(0xF6);
+  // Read two bytes from registers 0xF6 and 0xF7. Register is 16-bit
+  // unsigned but conversion formula uses 32-bit signed, so be careful
+  // with the conversion
+  UT = read_int16(0xF6) & 0xFFFF; 
 
   //Start pressure measurement 
   // Write 0x34+(OSS<<6) into register 0xF4
